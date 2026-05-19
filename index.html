@@ -3,89 +3,331 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Human Verification</title>
+
+<title>Swipe Confirmation</title>
 
 <style>
-body{
-    font-family: Arial;
-    background:#111;
-    color:white;
-    text-align:center;
-    padding-top:40px;
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family: Arial, sans-serif;
 }
 
-.container{
+body{
+    background:#f4f4f4;
     display:flex;
     justify-content:center;
-    gap:20px;
-    margin-top:40px;
+    align-items:flex-start;
+    min-height:100vh;
+    padding-top:30px;
+}
+
+.wrapper{
+    width:95%;
+    max-width:420px;
+}
+
+.title{
+    font-size:24px;
+    font-weight:bold;
+    margin-bottom:20px;
+    color:#111;
 }
 
 .card{
-    width:120px;
-    height:120px;
-    background:#222;
-    border:2px solid #444;
-    border-radius:12px;
+    background:#f7c32f;
+    border-radius:14px;
+    overflow:hidden;
+    margin-bottom:25px;
+    border:2px solid #e0ad16;
+}
+
+.card-top{
+    padding:18px;
+    font-size:24px;
+    font-weight:bold;
+    color:#111;
+}
+
+.card-bottom{
+    background:white;
+    padding:18px;
+    font-size:22px;
+    font-weight:bold;
+    color:#222;
+}
+
+.info{
+    font-size:20px;
+    line-height:1.5;
+    color:#111;
+    margin-bottom:45px;
+}
+
+.phone{
+    font-weight:bold;
+    margin-top:8px;
+}
+
+.slider-container{
+    position:relative;
+    width:100%;
+    height:82px;
+    background:#f7c32f;
+    border-radius:50px;
+    overflow:hidden;
+    user-select:none;
+}
+
+.slider-text{
+    position:absolute;
+    width:100%;
+    height:100%;
     display:flex;
     align-items:center;
     justify-content:center;
-    font-size:38px;
+    font-size:20px;
+    font-weight:bold;
+    color:white;
+    pointer-events:none;
+}
+
+.slider-button{
+    position:absolute;
+    width:74px;
+    height:74px;
+    background:white;
+    border-radius:50%;
+    top:4px;
+    left:4px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:34px;
     cursor:pointer;
-    user-select:none;
+    z-index:2;
+    transition:0.1s;
+    box-shadow:0 2px 10px rgba(0,0,0,0.2);
+}
+
+.result{
+    margin-top:25px;
+    text-align:center;
+    font-size:20px;
+    font-weight:bold;
+}
+
+.challenge{
+    margin-top:30px;
+    display:none;
+}
+
+.challenge-title{
+    text-align:center;
+    font-size:20px;
+    margin-bottom:20px;
+    font-weight:bold;
+}
+
+.number-grid{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+}
+
+.number-card{
+    flex:1;
+    background:white;
+    border-radius:14px;
+    height:110px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:34px;
+    font-weight:bold;
+    cursor:pointer;
+    border:2px solid #ddd;
     transition:0.2s;
 }
 
-.card:hover{
-    transform:scale(1.05);
-    background:#333;
+.number-card:hover{
+    transform:scale(1.03);
 }
 
-button{
-    padding:12px 20px;
-    font-size:18px;
-    border:none;
-    border-radius:10px;
-    background:#00aa66;
-    color:white;
-    cursor:pointer;
+.terms{
+    margin-top:100px;
+    text-align:center;
+    font-size:16px;
+    color:#111;
 }
 
-#result{
-    margin-top:30px;
-    font-size:20px;
+.success{
+    color:green;
 }
+
+.error{
+    color:red;
+}
+
 </style>
 </head>
+
 <body>
 
-<h1>Human Verification</h1>
+<div class="wrapper">
 
-<button onclick="startChallenge()">
-Confirm
-</button>
+    <div class="title">
+        Confirm Subscription
+    </div>
 
-<div class="container" id="cards"></div>
+    <div class="card">
+        <div class="card-top">
+            11players Daily
+        </div>
 
-<div id="result"></div>
+        <div class="card-bottom">
+            GHC 0.99 Daily
+        </div>
+    </div>
+
+    <div class="info">
+        The below mobile number will be charged for this transaction
+
+        <div class="phone">
+            233596435305
+        </div>
+    </div>
+
+    <!-- SLIDER -->
+    <div class="slider-container" id="sliderContainer">
+
+        <div class="slider-text">
+            Swipe to confirm
+        </div>
+
+        <div class="slider-button" id="sliderButton">
+            »
+        </div>
+
+    </div>
+
+    <!-- CHALLENGE -->
+    <div class="challenge" id="challenge">
+
+        <div class="challenge-title">
+            Tap the spoken number
+        </div>
+
+        <div class="number-grid" id="numberGrid"></div>
+
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <div class="terms">
+        Terms and conditions
+    </div>
+
+</div>
 
 <script>
 
-const synth = window.speechSynthesis;
+const slider = document.getElementById("sliderButton");
+const container = document.getElementById("sliderContainer");
 
-let correctNumber = null;
-let challengeStart = 0;
+let isDragging = false;
+let startX = 0;
 
-function shuffle(arr){
-    return arr.sort(() => Math.random() - 0.5);
+slider.addEventListener("touchstart", startDrag);
+slider.addEventListener("mousedown", startDrag);
+
+document.addEventListener("touchmove", drag);
+document.addEventListener("mousemove", drag);
+
+document.addEventListener("touchend", endDrag);
+document.addEventListener("mouseup", endDrag);
+
+function startDrag(e){
+
+    isDragging = true;
+
+    startX =
+        e.type.includes("mouse")
+        ? e.clientX
+        : e.touches[0].clientX;
 }
 
-function generateNumbers(){
+function drag(e){
+
+    if(!isDragging) return;
+
+    const clientX =
+        e.type.includes("mouse")
+        ? e.clientX
+        : e.touches[0].clientX;
+
+    let moveX = clientX - startX;
+
+    if(moveX < 0) moveX = 0;
+
+    const max =
+        container.offsetWidth - slider.offsetWidth - 4;
+
+    if(moveX > max) moveX = max;
+
+    slider.style.left = moveX + "px";
+}
+
+function endDrag(){
+
+    if(!isDragging) return;
+
+    isDragging = false;
+
+    const current =
+        parseInt(slider.style.left || "0");
+
+    const max =
+        container.offsetWidth - slider.offsetWidth - 10;
+
+    if(current >= max - 20){
+
+        slider.style.left = max + "px";
+
+        setTimeout(() => {
+            launchChallenge();
+        }, 300);
+
+    }else{
+        slider.style.left = "4px";
+    }
+}
+
+const synth = window.speechSynthesis;
+
+let correct = null;
+let challengeStart = 0;
+
+function speak(text){
+
+    const utter =
+        new SpeechSynthesisUtterance(text);
+
+    utter.rate = 0.9;
+
+    synth.speak(utter);
+}
+
+function randomNumbers(){
 
     const nums = [];
 
     while(nums.length < 3){
-        const n = Math.floor(Math.random() * 90) + 10;
+
+        const n =
+            Math.floor(Math.random() * 90) + 10;
 
         if(!nums.includes(n)){
             nums.push(n);
@@ -95,78 +337,77 @@ function generateNumbers(){
     return nums;
 }
 
-function speak(text){
-
-    const utter = new SpeechSynthesisUtterance(text);
-
-    utter.rate = 0.9;
-    utter.pitch = 1;
-    utter.volume = 1;
-
-    synth.speak(utter);
+function shuffle(arr){
+    return arr.sort(() => Math.random() - 0.5);
 }
 
-function startChallenge(){
+function launchChallenge(){
 
-    document.getElementById("result").innerHTML = "";
+    document.getElementById("challenge")
+        .style.display = "block";
 
-    const numbers = generateNumbers();
+    const nums = randomNumbers();
 
-    correctNumber =
-        numbers[Math.floor(Math.random() * numbers.length)];
+    correct =
+        nums[Math.floor(Math.random() * nums.length)];
 
-    const shuffled = shuffle([...numbers]);
+    const shuffled = shuffle([...nums]);
 
-    const cards = document.getElementById("cards");
+    const grid =
+        document.getElementById("numberGrid");
 
-    cards.innerHTML = "";
+    grid.innerHTML = "";
 
     shuffled.forEach(num => {
 
         const div = document.createElement("div");
 
-        div.className = "card";
+        div.className = "number-card";
+
         div.innerText = num;
 
-        div.onclick = (e) => {
+        div.onclick = () => selectNumber(num);
 
-            const reaction =
-                performance.now() - challengeStart;
-
-            const rect = div.getBoundingClientRect();
-
-            const tapData = {
-                tapped: num,
-                expected: correctNumber,
-                correct: num === correctNumber,
-                reactionTimeMs: Math.round(reaction),
-                x: Math.round(rect.left),
-                y: Math.round(rect.top),
-                timestamp: Date.now()
-            };
-
-            console.log("Tap Data:", tapData);
-
-            if(num === correctNumber){
-
-                document.getElementById("result")
-                    .innerHTML =
-                    "✅ Correct Human Response";
-
-            }else{
-
-                document.getElementById("result")
-                    .innerHTML =
-                    "❌ Wrong Selection";
-            }
-        };
-
-        cards.appendChild(div);
+        grid.appendChild(div);
     });
 
     challengeStart = performance.now();
 
-    speak("Tap number " + correctNumber);
+    speak("Tap number " + correct);
+}
+
+function selectNumber(num){
+
+    const reaction =
+        performance.now() - challengeStart;
+
+    const result =
+        document.getElementById("result");
+
+    const data = {
+        selected: num,
+        expected: correct,
+        correct: num === correct,
+        reactionMs: Math.round(reaction),
+        timestamp: Date.now()
+    };
+
+    console.log("Verification Data:", data);
+
+    if(num === correct){
+
+        result.className = "result success";
+
+        result.innerHTML =
+            "✓ Human verification successful";
+
+    }else{
+
+        result.className = "result error";
+
+        result.innerHTML =
+            "✗ Wrong selection";
+    }
 }
 
 </script>
