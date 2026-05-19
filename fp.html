@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Advanced Fingerprint Diagnostics</title>
+
+  <style>
+    body {
+      background: #0f1115;
+      color: #e6edf3;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #58a6ff;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+
+    .danger {
+      color: #ff6b6b;
+      font-weight: bold;
+    }
+
+    .ok {
+      color: #3fb950;
+      font-weight: bold;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #0d1117;
+      padding: 10px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+
+    button {
+      padding: 10px 15px;
+      background: #238636;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    button:hover {
+      background: #2ea043;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Advanced Mobile Fingerprint Diagnostics</h1>
+
+<button onclick="runFingerprint()">Run Fingerprint</button>
+
+<div id="output"></div>
+
+<script>
+async function runFingerprint() {
+
+  const out = {};
+  const risks = [];
+
+  // ----------------------------------------
+  // BASIC
+  // ----------------------------------------
+
+  out.userAgent = navigator.userAgent;
+  out.platform = navigator.platform;
+  out.hardwareConcurrency = navigator.hardwareConcurrency;
+  out.deviceMemory = navigator.deviceMemory || null;
+  out.language = navigator.language;
+  out.languages = navigator.languages;
+
+  // ----------------------------------------
+  // TOUCH
+  // ----------------------------------------
+
+  out.maxTouchPoints = navigator.maxTouchPoints || 0;
+
+  // ----------------------------------------
+  // SCREEN
+  // ----------------------------------------
+
+  out.screen = {
+    width: screen.width,
+    height: screen.height,
+    availWidth: screen.availWidth,
+    availHeight: screen.availHeight,
+    pixelRatio: window.devicePixelRatio
+  };
+
+  // ----------------------------------------
+  // WEBGL
+  // ----------------------------------------
+
+  try {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
+
+    if (gl) {
+      const dbg = gl.getExtension("WEBGL_debug_renderer_info");
+
+      out.webgl = {
+        vendor: gl.getParameter(gl.VENDOR),
+        renderer: gl.getParameter(gl.RENDERER),
+        unmaskedVendor: dbg
+          ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)
+          : null,
+        unmaskedRenderer: dbg
+          ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)
+          : null
+      };
+    }
+  } catch (e) {
+    out.webgl = { error: e.message };
+  }
+
+  // ----------------------------------------
+  // WEBGPU
+  // ----------------------------------------
+
+  try {
+    const start = performance.now();
+
+    if (navigator.gpu) {
+      await navigator.gpu.requestAdapter();
+
+      const elapsed = performance.now() - start;
+
+      out.webgpu = {
+        available: true,
+        responseTime: elapsed
+      };
+
+      if (elapsed < 1) {
+        risks.push("WebGPU suspiciously fast");
+      }
+    } else {
+      out.webgpu = {
+        available: false
+      };
+    }
+  } catch (e) {
+    out.webgpu = {
+      error: e.message
+    };
+  }
+
+  // ----------------------------------------
+  // AUDIO
+  // ----------------------------------------
+
+  try {
+    out.audioWorklet = !!window.AudioWorkletNode;
+  } catch (e) {
+    out.audioWorklet = false;
+  }
+
+  // ----------------------------------------
+  // BATTERY
+  // ----------------------------------------
+
+  try {
+    if (navigator.getBattery) {
+      const battery = await navigator.getBattery();
+
+      out.battery = {
+        charging: battery.charging,
+        level: battery.level,
+        chargingTime: battery.chargingTime,
+        dischargingTime: battery.dischargingTime
+      };
+    } else {
+      out.battery = "Not supported";
+    }
+  } catch (e) {
+    out.battery = e.message;
+  }
+
+  // ----------------------------------------
+  // SENSORS
+  // ----------------------------------------
+
+  out.sensors = {
+    accelerometer: false,
+    gyroscope: false,
+    orientation: false
+  };
+
+  window.addEventListener("devicemotion", () => {
+    out.sensors.accelerometer = true;
+  });
+
+  window.addEventListener("deviceorientation", () => {
+    out.sensors.orientation = true;
+  });
+
+  // Wait briefly
+  await new Promise(r => setTimeout(r, 1500));
+
+  // ----------------------------------------
+  // CHROME OBJECT
+  // ----------------------------------------
+
+  out.chromeObject = {
+    exists: !!window.chrome,
+    runtime: !!(window.chrome && chrome.runtime),
+    app: !!(window.chrome && chrome.app)
+  };
+
+  // ----------------------------------------
+  // HEADLESS CHECKS
+  // ----------------------------------------
+
+  out.webdriver = navigator.webdriver;
+
+  // ----------------------------------------
+  // RISK ENGINE
+  // ----------------------------------------
+
+  const ua = out.userAgent.toLowerCase();
+
+  if (ua.includes("android") && out.platform.includes("x86")) {
+    risks.push("Android UA + x86 platform mismatch");
+  }
+
+  if (
+    ua.includes("android") &&
+    out.webgl &&
+    out.webgl.unmaskedRenderer &&
+    out.webgl.unmaskedRenderer.toLowerCase().includes("intel")
+  ) {
+    risks.push("Mobile UA + Intel GPU");
+  }
+
+  if (
+    ua.includes("android") &&
+    !out.sensors.orientation
+  ) {
+    risks.push("No orientation sensor");
+  }
+
+  if (navigator.webdriver) {
+    risks.push("webdriver=true");
+  }
+
+  if (
+    out.maxTouchPoints <= 1 &&
+    ua.includes("mobile")
+  ) {
+    risks.push("Low touch points for mobile");
+  }
+
+  // ----------------------------------------
+  // DISPLAY
+  // ----------------------------------------
+
+  let html = `
+    <div class="card">
+      <h2>Collected Fingerprint</h2>
+      <pre>${JSON.stringify(out, null, 2)}</pre>
+    </div>
+  `;
+
+  html += `
+    <div class="card">
+      <h2>Risk Analysis</h2>
+  `;
+
+  if (risks.length === 0) {
+    html += `<div class="ok">No major anomalies detected</div>`;
+  } else {
+    html += `<div class="danger">Detected ${risks.length} anomalies:</div><ul>`;
+
+    for (const r of risks) {
+      html += `<li>${r}</li>`;
+    }
+
+    html += `</ul>`;
+  }
+
+  html += `</div>`;
+
+  document.getElementById("output").innerHTML = html;
+}
+</script>
+
+</body>
+</html>
